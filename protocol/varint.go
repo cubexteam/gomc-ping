@@ -17,12 +17,12 @@ func ReadVarInt(r io.ByteReader) (int, error) {
 		}
 
 		value |= int(b&0x7F) << (7 * position)
+		position++
 
 		if (b & 0x80) == 0 {
 			break
 		}
 
-		position++
 		if position >= 5 {
 			return 0, errors.New("VarInt is too big")
 		}
@@ -42,13 +42,14 @@ func ReadVarIntFromIO(r io.Reader) (int, error) {
 			return 0, err
 		}
 		b := one[0]
-		value := int(b & 0x7F)
-		result |= value << (7 * numRead)
+		result |= int(b&0x7F) << (7 * numRead)
 		numRead++
+
 		if (b & 0x80) == 0 {
 			break
 		}
-		if numRead > 5 {
+
+		if numRead >= 5 {
 			return 0, errors.New("VarInt is too big")
 		}
 	}
