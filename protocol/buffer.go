@@ -13,8 +13,6 @@ func NewPacketBuffer() *PacketBuffer {
 	return &PacketBuffer{buf: new(bytes.Buffer)}
 }
 
-func (pb *PacketBuffer) Release() {}
-
 func (pb *PacketBuffer) WriteVarInt(v int) {
 	uv := uint32(v)
 	for {

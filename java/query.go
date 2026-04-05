@@ -34,8 +34,11 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 
 	resp := make([]byte, 2048)
 	n, err := conn.Read(resp)
-	if err != nil || n < 5 {
+	if err != nil {
 		return nil, err
+	}
+	if n < 5 {
+		return nil, fmt.Errorf("response too short")
 	}
 
 	challengeToken, _ := strconv.Atoi(string(resp[5 : n-1]))

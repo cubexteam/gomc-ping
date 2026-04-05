@@ -12,7 +12,7 @@
 | :--- | :--- | :--- |
 | **Minecraft (Java)** | Proxy-safe handshake (Hypixel/Cloudflare compatible) | ✅ Стабильно |
 | **Minecraft (Bedrock)** | RakNet UDP protocol | ✅ Стабильно |
-| **Source Engine** | A2S protocol с поддержкой Challenge (0x41) (Rust, CS2) | ✅ Стабильно |
+| **Source Engine** | A2S protocol с поддержкой Challenge (Rust, CS2, DayZ, ARK, Valheim, Unturned) | ✅ Стабильно |
 | **Terraria** | TShock REST API / TCP Fallback | ✅ Стабильно |
 | **FiveM (GTA V)** | HTTP JSON API (/info.json + /players.json) | ✅ Стабильно |
 | **SA-MP (GTA SA)** | SA-MP UDP Query | ✅ Стабильно |
@@ -39,6 +39,14 @@ fivemResp, _ := gomcping.PingFiveM("95.217.143.11", 30120)
 
 // GTA SA (SA-MP)
 sampResp, _ := gomcping.PingSAMP("151.80.47.185", 7777)
+
+// DayZ
+dayzResp, _ := gomcping.PingDayZ("1.2.3.4", 2302)
+
+// ARK / Valheim / Unturned
+arkResp, _ := gomcping.PingARK("1.2.3.4", 27015)
+valheimResp, _ := gomcping.PingValheim("1.2.3.4", 2456)
+unturnedResp, _ := gomcping.PingUnturned("1.2.3.4", 27015)
 
 // Rust / CS2
 rustResp, _ := gomcping.PingRust("1.2.3.4", 28015)
