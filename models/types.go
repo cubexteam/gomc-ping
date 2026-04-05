@@ -54,7 +54,7 @@ func (r *Response) String() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("🎮 %s (%s)\n", r.MOTD, r.Version))
+	b.WriteString(fmt.Sprintf("🎮 [%s] %s (%s)\n", r.Edition, r.MOTD, r.Version))
 	b.WriteString(fmt.Sprintf("👥 Players: %d/%d\n", r.PlayersOn, r.PlayersMax))
 	b.WriteString(fmt.Sprintf("📡 Latency: %v\n", r.Latency))
 	if r.World != "" {
