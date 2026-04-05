@@ -71,15 +71,9 @@ func (c *Client) Execute(cmd string) (string, error) {
 		return "", err
 	}
 
-	respID, _, body, err := c.readPacket()
+	_, _, body, err := c.readPacket()
 	if err != nil {
 		return "", err
-	}
-
-	// Basic ID validation
-	if respID != requestID {
-		// Sometimes servers send multiple packets, but for basic implementation
-		// we expect the direct response.
 	}
 
 	return body, nil
