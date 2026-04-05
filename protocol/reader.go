@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"errors"
-	"fmt"
 )
 
 type PacketReader struct {
