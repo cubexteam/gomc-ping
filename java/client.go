@@ -31,7 +31,7 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 	// Handshake Packet
 	hpb := protocol.NewPacketBuffer()
 	hpb.WriteVarInt(0x00)
-	hpb.WriteVarInt(int32(protocolVer))
+	hpb.WriteVarInt(protocolVer)
 	hpb.WriteString(handshakeHost)
 	hpb.WriteUint16(port)
 	hpb.WriteVarInt(1)
