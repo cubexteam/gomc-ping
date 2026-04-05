@@ -3,40 +3,27 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+
+permissions:
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: go.mod
 
-      - name: Build
-        run: |
-          platforms=("windows/amd64" "windows/arm64" "linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64")
-          for platform in "${platforms[@]}"; do
-            GOOS="${platform%/*}"
-            GOARCH="${platform#*/}"
-            output="gomc-ping_${GOOS}_${GOARCH}"
-            [ "$GOOS" = "windows" ] && output="${output}.exe"
-            GOOS=$GOOS GOARCH=$GOARCH go build -o "$output" ./examples/basic/
-            zip "gomc-ping_${GOOS}_${GOARCH}.zip" "$output"
-          done
-
-      - name: Checksums
-        run: sha256sum *.zip > checksums.txt
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v6
         with:
-          files: |
-            *.zip
-            checksums.txt
-          generate_release_notes: true
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
