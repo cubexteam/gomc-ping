@@ -45,7 +45,7 @@ func (c *Client) authenticate(password string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	id, err := c.send(PacketAuth, password)
+	_, err := c.send(PacketAuth, password)
 	if err != nil {
 		return err
 	}
