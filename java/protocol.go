@@ -1,7 +1,6 @@
 package java
 
 import (
-	"encoding/json"
 	"strings"
 	"github.com/cubexteam/gomc-ping/models"
 )
