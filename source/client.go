@@ -79,11 +79,11 @@ func parseA2S(data []byte, host string, port uint16, latency time.Duration) (*mo
 	maxPlayers, err := readByte(r)
 	if err != nil { return nil, err }
 
-	_ = readByte(r) // Bots
-	_ = readByte(r) // Type
-	_ = readByte(r) // OS
-	_ = readByte(r) // Visibility
-	_ = readByte(r) // VAC
+	if _, err := readByte(r); err != nil { return nil, err } // Bots
+	if _, err := readByte(r); err != nil { return nil, err } // Type
+	if _, err := readByte(r); err != nil { return nil, err } // OS
+	if _, err := readByte(r); err != nil { return nil, err } // Visibility
+	if _, err := readByte(r); err != nil { return nil, err } // VAC
 	version, err := readString(r)
 	if err != nil { return nil, err }
 
