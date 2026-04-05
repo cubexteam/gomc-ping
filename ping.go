@@ -56,9 +56,9 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	defer cancel()
 
 	var wg sync.WaitGroup
-	wg.Add(6)
 
 	// Minecraft Java
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if resp, err := java.Ping(targetHost, targetPort, targetHost, cfg); err == nil {
@@ -69,6 +69,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	}()
 
 	// Minecraft Bedrock
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if resp, err := bedrock.Ping(targetHost, targetPort, cfg); err == nil {
@@ -79,6 +80,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	}()
 
 	// Source Engine (Rust, CS2)
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if resp, err := source.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
@@ -88,6 +90,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	}()
 
 	// Terraria
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if resp, err := terraria.Ping(targetHost, targetPort, cfg); err == nil {
@@ -97,26 +100,28 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	}()
 
 	// FiveM (GTA V) - Only if enabled or standard port
-	go func() {
-		defer wg.Done()
-		if cfg.EnableFiveM || targetPort == 30120 {
+	if cfg.EnableFiveM || targetPort == 30120 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			if resp, err := fivem.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
 				resp.Host = host
 				sendResult(ctx, resultChan, resp)
 			}
-		}
-	}()
+		}()
+	}
 
 	// SA-MP (GTA SA) - Only if enabled or standard port
-	go func() {
-		defer wg.Done()
-		if cfg.EnableSAMP || targetPort == 7777 {
+	if cfg.EnableSAMP || targetPort == 7777 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			if resp, err := samp.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
 				resp.Host = host
 				sendResult(ctx, resultChan, resp)
 			}
-		}
-	}()
+		}()
+	}
 
 	// Cleanup goroutine
 	go func() {
