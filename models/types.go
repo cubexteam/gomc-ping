@@ -24,6 +24,7 @@ type Response struct {
 	Map        string        `json:"map,omitempty"`
 	World      string        `json:"world,omitempty"`
 	Plugins    []string      `json:"plugins,omitempty"`
+	Password   bool          `json:"password,omitempty"`
 }
 
 type Player struct {
@@ -37,6 +38,8 @@ type Config struct {
 	JavaProtocol     int
 	DisableCache     bool
 	TerrariaFallback bool
+	EnableFiveM      bool
+	EnableSAMP       bool
 }
 
 var (
