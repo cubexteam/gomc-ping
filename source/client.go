@@ -88,8 +88,15 @@ func parseA2S(data []byte, host string, port uint16, latency time.Duration) (*mo
 	if err != nil { return nil, err }
 
 	edition := "Source"
-	if folder == "dayz" || game == "DayZ" {
+	f := folder
+	if f == "dayz" || game == "DayZ" {
 		edition = "DayZ"
+	} else if f == "unturned" {
+		edition = "Unturned"
+	} else if f == "valheim" {
+		edition = "Valheim"
+	} else if f == "ark_survival_evolved" || game == "ARK: Survival Evolved" {
+		edition = "ARK"
 	}
 
 	return &models.Response{
