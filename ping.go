@@ -161,6 +161,12 @@ func PingCS2(host string, port uint16) (*models.Response, error) {
 	return resp, err
 }
 
+func PingDayZ(host string, port uint16) (*models.Response, error) {
+	resp, err := source.Ping(host, port, DefaultTimeout)
+	if err == nil { resp.Edition = "DayZ" }
+	return resp, err
+}
+
 func PingTerraria(host string, port uint16) (*models.Response, error) {
 	return terraria.Ping(host, port, NewConfig())
 }
