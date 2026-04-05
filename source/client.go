@@ -87,6 +87,11 @@ func parseA2S(data []byte, host string, port uint16, latency time.Duration) (*mo
 	version, err := readString(r)
 	if err != nil { return nil, err }
 
+	edition := "Source"
+	if folder == "dayz" || game == "DayZ" {
+		edition = "DayZ"
+	}
+
 	return &models.Response{
 		Online:     true,
 		Host:       host,
@@ -98,7 +103,7 @@ func parseA2S(data []byte, host string, port uint16, latency time.Duration) (*mo
 		Software:   fmt.Sprintf("%s (%s)", game, folder),
 		Version:    version,
 		Latency:    latency,
-		Edition:    "Source",
+		Edition:    edition,
 	}, nil
 }
 
