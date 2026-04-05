@@ -26,7 +26,15 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 		if err != nil || len(ips) == 0 {
 			return nil, fmt.Errorf("failed to resolve host")
 		}
-		ip = ips[0].To4()
+		for _, addr := range ips {
+			if ipv4 := addr.To4(); ipv4 != nil {
+				ip = ipv4
+				break
+			}
+		}
+	}
+	if ip == nil {
+		return nil, fmt.Errorf("no IPv4 address found for host")
 	}
 
 	var buf bytes.Buffer
