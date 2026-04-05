@@ -167,6 +167,24 @@ func PingDayZ(host string, port uint16) (*models.Response, error) {
 	return resp, err
 }
 
+func PingARK(host string, port uint16) (*models.Response, error) {
+	resp, err := source.Ping(host, port, DefaultTimeout)
+	if err == nil { resp.Edition = "ARK" }
+	return resp, err
+}
+
+func PingValheim(host string, port uint16) (*models.Response, error) {
+	resp, err := source.Ping(host, port, DefaultTimeout)
+	if err == nil { resp.Edition = "Valheim" }
+	return resp, err
+}
+
+func PingUnturned(host string, port uint16) (*models.Response, error) {
+	resp, err := source.Ping(host, port, DefaultTimeout)
+	if err == nil { resp.Edition = "Unturned" }
+	return resp, err
+}
+
 func PingTerraria(host string, port uint16) (*models.Response, error) {
 	return terraria.Ping(host, port, NewConfig())
 }
