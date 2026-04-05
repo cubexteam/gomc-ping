@@ -66,7 +66,7 @@ func (c *Client) Execute(cmd string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	requestID, err := c.send(PacketCommand, cmd)
+	_, err := c.send(PacketCommand, cmd)
 	if err != nil {
 		return "", err
 	}
