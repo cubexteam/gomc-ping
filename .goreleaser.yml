@@ -26,5 +26,4 @@ checksum:
   name_template: checksums.txt
 
 changelog:
-  use: git
-  sort: asc
+  disable: true
