@@ -10,6 +10,8 @@ import (
 	"github.com/cubexteam/gomc-ping/bedrock"
 	"github.com/cubexteam/gomc-ping/source"
 	"github.com/cubexteam/gomc-ping/terraria"
+	"github.com/cubexteam/gomc-ping/fivem"
+	"github.com/cubexteam/gomc-ping/samp"
 	"github.com/cubexteam/gomc-ping/utils"
 	"github.com/cubexteam/gomc-ping/models"
 	"github.com/cubexteam/gomc-ping/cache"
@@ -25,6 +27,8 @@ func NewConfig() *models.Config {
 		Timeout:      DefaultTimeout,
 		SRV:          true,
 		JavaProtocol: 47,
+		EnableFiveM:  false, // Opt-in for parallel ping
+		EnableSAMP:   false, // Opt-in for parallel ping
 	}
 }
 
@@ -47,14 +51,14 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 		}
 	}
 
-	resultChan := make(chan *models.Response, 4)
+	resultChan := make(chan *models.Response, 6)
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(6)
 
-	// Workers
+	// Minecraft Java
 	go func() {
 		defer wg.Done()
 		if resp, err := java.Ping(targetHost, targetPort, targetHost, cfg); err == nil {
@@ -64,6 +68,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 		}
 	}()
 
+	// Minecraft Bedrock
 	go func() {
 		defer wg.Done()
 		if resp, err := bedrock.Ping(targetHost, targetPort, cfg); err == nil {
@@ -73,6 +78,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 		}
 	}()
 
+	// Source Engine (Rust, CS2)
 	go func() {
 		defer wg.Done()
 		if resp, err := source.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
@@ -81,11 +87,34 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 		}
 	}()
 
+	// Terraria
 	go func() {
 		defer wg.Done()
 		if resp, err := terraria.Ping(targetHost, targetPort, cfg); err == nil {
 			resp.Host = host
 			sendResult(ctx, resultChan, resp)
+		}
+	}()
+
+	// FiveM (GTA V) - Only if enabled or standard port
+	go func() {
+		defer wg.Done()
+		if cfg.EnableFiveM || targetPort == 30120 {
+			if resp, err := fivem.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
+				resp.Host = host
+				sendResult(ctx, resultChan, resp)
+			}
+		}
+	}()
+
+	// SA-MP (GTA SA) - Only if enabled or standard port
+	go func() {
+		defer wg.Done()
+		if cfg.EnableSAMP || targetPort == 7777 {
+			if resp, err := samp.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
+				resp.Host = host
+				sendResult(ctx, resultChan, resp)
+			}
 		}
 	}()
 
@@ -98,7 +127,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	select {
 	case res := <-resultChan:
 		if res != nil {
-			cancel() // Stop other workers
+			cancel()
 			if !cfg.DisableCache {
 				GlobalCache.Set(cacheKey, res)
 			}
@@ -136,6 +165,14 @@ func PingTerraria(host string, port uint16) (*models.Response, error) {
 	return terraria.Ping(host, port, NewConfig())
 }
 
+func PingFiveM(host string, port uint16) (*models.Response, error) {
+	return fivem.Ping(host, port, DefaultTimeout)
+}
+
+func PingSAMP(host string, port uint16) (*models.Response, error) {
+	return samp.Ping(host, port, DefaultTimeout)
+}
+
 func processResponse(resp *models.Response, host, tHost string, tPort uint16, cfg *models.Config) {
 	resp.MOTD = models.CleanMOTD(resp.MOTD)
 	if qResp, qErr := java.Query(tHost, tPort, cfg.Timeout); qErr == nil {
@@ -149,7 +186,6 @@ func SaveFavicon(data string, path string) error {
 	return utils.SaveFavicon(data, path)
 }
 
-// Close stops the global cache janitor.
 func Close() {
 	GlobalCache.Close()
 }
