@@ -3,6 +3,7 @@ package terraria
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"time"
