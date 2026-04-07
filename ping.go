@@ -144,6 +144,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 		}
 		return nil, fmt.Errorf("server %s:%d unreachable", host, port)
 	}
+	return nil, fmt.Errorf("server %s:%d unreachable", host, port)
 }
 
 func sendResult(ctx context.Context, ch chan *models.Response, res *models.Response) {
