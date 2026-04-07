@@ -20,21 +20,11 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	ip := net.ParseIP(host).To4()
+	// Get IPv4 from existing connection to avoid double DNS lookup
+	remoteAddr := conn.RemoteAddr().(*net.UDPAddr)
+	ip := remoteAddr.IP.To4()
 	if ip == nil {
-		ips, err := net.LookupIP(host)
-		if err != nil || len(ips) == 0 {
-			return nil, fmt.Errorf("failed to resolve host")
-		}
-		for _, addr := range ips {
-			if ipv4 := addr.To4(); ipv4 != nil {
-				ip = ipv4
-				break
-			}
-		}
-	}
-	if ip == nil {
-		return nil, fmt.Errorf("no IPv4 address found for host")
+		return nil, fmt.Errorf("SA-MP requires IPv4, but got %s", remoteAddr.IP)
 	}
 
 	var buf bytes.Buffer
