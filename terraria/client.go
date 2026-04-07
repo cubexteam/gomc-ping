@@ -73,7 +73,8 @@ func tryTShock(host string, port int, timeout time.Duration) (*models.Response, 
 	}
 
 	var status TShockStatus
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+	limitReader := io.LimitReader(resp.Body, 1024*1024) // 1MB limit
+	if err := json.NewDecoder(limitReader).Decode(&status); err != nil {
 		return nil, err
 	}
 
