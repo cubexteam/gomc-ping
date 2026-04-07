@@ -41,7 +41,11 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 		return nil, fmt.Errorf("response too short")
 	}
 
-	challengeToken, _ := strconv.Atoi(string(resp[5 : n-1]))
+	tokenStr := strings.TrimRight(string(resp[5:n]), "\x00")
+	challengeToken, err := strconv.Atoi(strings.TrimSpace(tokenStr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse challenge token: %v", err)
+	}
 
 	// Request Full Stat
 	buf.Reset()
