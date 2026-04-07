@@ -38,17 +38,8 @@ func (pb *PacketBuffer) Build() []byte {
 	data := pb.buf.Bytes()
 	var framed bytes.Buffer
 
-	// Write length
-	v := len(data)
-	uv := uint32(v)
-	for {
-		if (uv & ^uint32(0x7F)) == 0 {
-			framed.WriteByte(byte(uv))
-			break
-		}
-		framed.WriteByte(byte(uv&0x7F | 0x80))
-		uv >>= 7
-	}
+	// Write length using centralized WriteVarInt
+	framed.Write(WriteVarInt(len(data)))
 	framed.Write(data)
 	return framed.Bytes()
 }
