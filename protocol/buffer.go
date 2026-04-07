@@ -14,15 +14,7 @@ func NewPacketBuffer() *PacketBuffer {
 }
 
 func (pb *PacketBuffer) WriteVarInt(v int) {
-	uv := uint32(v)
-	for {
-		if (uv & ^uint32(0x7F)) == 0 {
-			pb.buf.WriteByte(byte(uv))
-			return
-		}
-		pb.buf.WriteByte(byte(uv&0x7F | 0x80))
-		uv >>= 7
-	}
+	pb.buf.Write(WriteVarInt(v))
 }
 
 func (pb *PacketBuffer) WriteString(s string) {
