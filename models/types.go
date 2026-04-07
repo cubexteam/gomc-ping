@@ -3,9 +3,12 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 type Response struct {
 	Online     bool          `json:"online"`
@@ -69,9 +72,13 @@ func (r *Response) JSON() string {
 }
 
 func CleanMOTD(motd string) string {
+	// First clean ANSI escape codes
+	motd = ansiRegex.ReplaceAllString(motd, "")
+
 	var b strings.Builder
 	runes := []rune(motd)
 	for i := 0; i < len(runes); i++ {
+		// Clean Minecraft style color codes (§ and &)
 		if runes[i] == '§' {
 			i++
 			continue
