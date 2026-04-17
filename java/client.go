@@ -24,7 +24,7 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 
 	protocolVer := config.JavaProtocol
 	if protocolVer == 0 {
-		protocolVer = 47 // Default to 1.8
+		protocolVer = 47
 	}
 
 	// Handshake Packet
@@ -41,7 +41,6 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 	spb.WriteVarInt(0x00)
 	request := spb.Build()
 
-	// Send burst and start measuring latency
 	start := time.Now()
 	if _, err := conn.Write(append(handshake, request...)); err != nil {
 		return nil, err
@@ -74,7 +73,7 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 		return nil, fmt.Errorf("unmarshal: %v", err)
 	}
 
-	return &models.Response{
+	resp := &models.Response{
 		Online:     true,
 		Host:       handshakeHost,
 		Port:       port,
@@ -85,7 +84,8 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 		Favicon:    status.Favicon,
 		Version:    status.Version.Name,
 		Protocol:   status.Version.Protocol,
-		Latency:    latency,
 		Edition:    "Java",
-	}, nil
+	}
+	resp.SetLatency(latency)
+	return resp, nil
 }
