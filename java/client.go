@@ -1,6 +1,7 @@
 package java
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,7 +20,6 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 		return nil, err
 	}
 	defer conn.Close()
-
 	_ = conn.SetDeadline(time.Now().Add(config.Timeout))
 
 	protocolVer := config.JavaProtocol
@@ -27,22 +27,24 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 		protocolVer = 47
 	}
 
-	// Handshake Packet
+	// Build both packets into a single buffer to avoid append aliasing
+	// and reduce the number of syscalls.
 	hpb := protocol.NewPacketBuffer()
 	hpb.WriteVarInt(0x00)
 	hpb.WriteVarInt(protocolVer)
 	hpb.WriteString(handshakeHost)
 	hpb.WriteUint16(port)
 	hpb.WriteVarInt(1)
-	handshake := hpb.Build()
 
-	// Status Request Packet
 	spb := protocol.NewPacketBuffer()
 	spb.WriteVarInt(0x00)
-	request := spb.Build()
+
+	var burst bytes.Buffer
+	burst.Write(hpb.Build())
+	burst.Write(spb.Build())
 
 	start := time.Now()
-	if _, err := conn.Write(append(handshake, request...)); err != nil {
+	if _, err := conn.Write(burst.Bytes()); err != nil {
 		return nil, err
 	}
 
