@@ -20,17 +20,13 @@ func (pr *PacketReader) ReadVarInt() (int32, error) {
 		if numRead >= 5 {
 			return 0, errors.New("varint too big")
 		}
-
 		if pr.offset >= len(pr.data) {
 			return 0, errors.New("unexpected end of data")
 		}
-
 		b := pr.data[pr.offset]
 		pr.offset++
-
 		value |= int32(b&0x7F) << uint(7*numRead)
 		numRead++
-
 		if b&0x80 == 0 {
 			break
 		}
@@ -43,10 +39,14 @@ func (pr *PacketReader) ReadString() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if pr.offset+int(length) > len(pr.data) {
+	if length < 0 {
+		return "", errors.New("negative string length")
+	}
+	end := pr.offset + int(length)
+	if end > len(pr.data) {
 		return "", errors.New("string length exceeds data")
 	}
-	str := string(pr.data[pr.offset : pr.offset+int(length)])
-	pr.offset += int(length)
+	str := string(pr.data[pr.offset:end])
+	pr.offset = end
 	return str, nil
 }
