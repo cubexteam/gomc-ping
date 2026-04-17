@@ -12,8 +12,23 @@ import (
 	"github.com/cubexteam/gomc-ping/models"
 )
 
-// Query retrieves server status using the GameSpy4 Query protocol
+const queryMaxRetries = 2
+
+// Query retrieves extended server info using the GameSpy4 Query protocol.
+// It retries up to queryMaxRetries times on UDP packet loss.
 func Query(host string, port uint16, timeout time.Duration) (*models.Response, error) {
+	var lastErr error
+	for attempt := 0; attempt <= queryMaxRetries; attempt++ {
+		resp, err := queryOnce(host, port, timeout)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+func queryOnce(host string, port uint16, timeout time.Duration) (*models.Response, error) {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	conn, err := net.DialTimeout("udp", addr, timeout)
 	if err != nil {
@@ -22,7 +37,6 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Get Challenge Token
 	sessionID := int32(0x01010101)
 	buf := new(bytes.Buffer)
 	buf.Write([]byte{0xFE, 0xFD, 0x09})
@@ -38,7 +52,7 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 		return nil, err
 	}
 	if n < 5 {
-		return nil, fmt.Errorf("response too short")
+		return nil, fmt.Errorf("challenge response too short")
 	}
 
 	tokenStr := strings.TrimRight(string(resp[5:n]), "\x00")
@@ -47,7 +61,6 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 		return nil, fmt.Errorf("failed to parse challenge token: %v", err)
 	}
 
-	// Request Full Stat
 	buf.Reset()
 	buf.Write([]byte{0xFE, 0xFD, 0x00})
 	binary.Write(buf, binary.BigEndian, sessionID)
@@ -62,8 +75,10 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 	if err != nil {
 		return nil, err
 	}
+	if n < 11 {
+		return nil, fmt.Errorf("stat response too short")
+	}
 
-	// Extract data from response
 	data := resp[11:n]
 	parts := bytes.Split(data, []byte{0x00})
 
@@ -97,7 +112,6 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 		resPlayers[i] = models.Player{Name: p}
 	}
 
-	// Parse plugins: empty string should produce a nil slice, not [""]
 	var plugins []string
 	if raw := kv["plugins"]; raw != "" {
 		for _, p := range strings.Split(raw, ";") {
