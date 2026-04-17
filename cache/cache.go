@@ -17,6 +17,7 @@ type Cache struct {
 	items      map[string]item
 	defaultTTL time.Duration
 	stop       chan struct{}
+	once       sync.Once
 }
 
 func New(defaultTTL, cleanupInterval time.Duration) *Cache {
@@ -37,11 +38,9 @@ func (c *Cache) Get(key string) (*models.Response, bool) {
 	if !ok {
 		return nil, false
 	}
-
 	if time.Now().UnixNano() > it.expiration {
 		return nil, false
 	}
-
 	return it.response, true
 }
 
@@ -55,8 +54,11 @@ func (c *Cache) Set(key string, response *models.Response) {
 	}
 }
 
+// Close stops the background janitor. Safe to call multiple times.
 func (c *Cache) Close() {
-	close(c.stop)
+	c.once.Do(func() {
+		close(c.stop)
+	})
 }
 
 func (c *Cache) janitor(interval time.Duration) {
