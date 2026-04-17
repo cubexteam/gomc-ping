@@ -57,73 +57,86 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 
 	var wg sync.WaitGroup
 
-	// Minecraft Java
+	// Minecraft Java — enrich with Query asynchronously so it doesn't delay result
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if resp, err := java.Ping(targetHost, targetPort, host, cfg); err == nil {
-			resp.Host = host
-			processResponse(resp, host, targetHost, targetPort, cfg)
-			sendResult(ctx, resultChan, resp)
+		resp, err := java.Ping(targetHost, targetPort, host, cfg)
+		if err != nil {
+			return
 		}
+		resp.Host = host
+		resp.MOTD = models.CleanMOTD(resp.MOTD)
+		sendResult(ctx, resultChan, resp)
+		go enrichJava(resp, targetHost, targetPort, cfg)
 	}()
 
 	// Minecraft Bedrock
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if resp, err := bedrock.Ping(targetHost, targetPort, cfg); err == nil {
-			resp.Host = host
-			resp.MOTD = models.CleanMOTD(resp.MOTD)
-			sendResult(ctx, resultChan, resp)
+		resp, err := bedrock.Ping(targetHost, targetPort, cfg)
+		if err != nil {
+			return
 		}
+		resp.Host = host
+		resp.MOTD = models.CleanMOTD(resp.MOTD)
+		sendResult(ctx, resultChan, resp)
 	}()
 
 	// Source Engine (Rust, CS2, DayZ, ARK, Valheim, Unturned)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if resp, err := source.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
-			resp.Host = host
-			sendResult(ctx, resultChan, resp)
+		resp, err := source.Ping(targetHost, targetPort, cfg.Timeout)
+		if err != nil {
+			return
 		}
+		resp.Host = host
+		sendResult(ctx, resultChan, resp)
 	}()
 
 	// Terraria
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if resp, err := terraria.Ping(targetHost, targetPort, cfg); err == nil {
-			resp.Host = host
-			sendResult(ctx, resultChan, resp)
+		resp, err := terraria.Ping(targetHost, targetPort, cfg)
+		if err != nil {
+			return
 		}
+		resp.Host = host
+		sendResult(ctx, resultChan, resp)
 	}()
 
-	// FiveM (GTA V) - Only if enabled or standard port
+	// FiveM (GTA V) — Only if enabled or standard port
 	if cfg.EnableFiveM || targetPort == 30120 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if resp, err := fivem.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
-				resp.Host = host
-				sendResult(ctx, resultChan, resp)
+			resp, err := fivem.Ping(targetHost, targetPort, cfg.Timeout)
+			if err != nil {
+				return
 			}
+			resp.Host = host
+			sendResult(ctx, resultChan, resp)
 		}()
 	}
 
-	// SA-MP (GTA SA) - Only if enabled or standard port
+	// SA-MP (GTA SA) — Only if enabled or standard port
 	if cfg.EnableSAMP || targetPort == 7777 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if resp, err := samp.Ping(targetHost, targetPort, cfg.Timeout); err == nil {
-				resp.Host = host
-				sendResult(ctx, resultChan, resp)
+			resp, err := samp.Ping(targetHost, targetPort, cfg.Timeout)
+			if err != nil {
+				return
 			}
+			resp.Host = host
+			sendResult(ctx, resultChan, resp)
 		}()
 	}
 
-	// Cleanup goroutine
+	// Close channel when all goroutines finish
 	go func() {
 		wg.Wait()
 		close(resultChan)
@@ -154,7 +167,26 @@ func sendResult(ctx context.Context, ch chan *models.Response, res *models.Respo
 	}
 }
 
-// pingWithCache is a helper that applies global cache to direct ping functions.
+// enrichJava runs a GameSpy4 Query in the background and fills in extra fields.
+// It mutates the already-returned Response, so callers see updated data on next access.
+func enrichJava(resp *models.Response, tHost string, tPort uint16, cfg *models.Config) {
+	qResp, err := java.Query(tHost, tPort, cfg.Timeout)
+	if err != nil {
+		return
+	}
+	if qResp.Software != "" {
+		resp.Software = qResp.Software
+	}
+	if len(qResp.Plugins) > 0 {
+		resp.Plugins = qResp.Plugins
+	}
+	if qResp.Map != "" {
+		resp.Map = qResp.Map
+	}
+}
+
+// pingWithCache wraps a typed ping call with GlobalCache.
+// Key includes edition so PingRust / PingCS2 etc. have isolated entries.
 func pingWithCache(host string, port uint16, edition string, fn func() (*models.Response, error)) (*models.Response, error) {
 	cacheKey := fmt.Sprintf("%s:%d:%s", host, port, edition)
 	if resp, ok := GlobalCache.Get(cacheKey); ok {
@@ -244,21 +276,6 @@ func PingSAMP(host string, port uint16) (*models.Response, error) {
 	return pingWithCache(host, port, "SAMP", func() (*models.Response, error) {
 		return samp.Ping(host, port, DefaultTimeout)
 	})
-}
-
-func processResponse(resp *models.Response, host, tHost string, tPort uint16, cfg *models.Config) {
-	resp.MOTD = models.CleanMOTD(resp.MOTD)
-	if qResp, qErr := java.Query(tHost, tPort, cfg.Timeout); qErr == nil {
-		if qResp.Software != "" {
-			resp.Software = qResp.Software
-		}
-		if len(qResp.Plugins) > 0 {
-			resp.Plugins = qResp.Plugins
-		}
-		if qResp.Map != "" {
-			resp.Map = qResp.Map
-		}
-	}
 }
 
 func SaveFavicon(data string, path string) error {
