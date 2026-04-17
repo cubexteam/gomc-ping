@@ -25,7 +25,6 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 	start := time.Now()
 	client := &http.Client{Timeout: timeout}
 
-	// Fetch basic info
 	infoURL := fmt.Sprintf("http://%s:%d/info.json", host, port)
 	infoResp, err := client.Get(infoURL)
 	if err != nil {
@@ -42,7 +41,6 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 		return nil, err
 	}
 
-	// Fetch player count
 	var playersCount int
 	playersURL := fmt.Sprintf("http://%s:%d/players.json", host, port)
 	pResp, err := client.Get(playersURL)
@@ -59,7 +57,7 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 	var maxPlayers int
 	fmt.Sscanf(info.Vars.MaxClients, "%d", &maxPlayers)
 
-	return &models.Response{
+	resp := &models.Response{
 		Online:     true,
 		Host:       host,
 		Port:       port,
@@ -69,7 +67,8 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 		Map:        info.Vars.MapName,
 		Software:   info.Server,
 		Version:    fmt.Sprintf("v%d", info.Version),
-		Latency:    time.Since(start),
 		Edition:    "FiveM",
-	}, nil
+	}
+	resp.SetLatency(time.Since(start))
+	return resp, nil
 }
