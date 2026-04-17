@@ -1,6 +1,7 @@
 package fivem
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,12 +22,18 @@ type InfoResponse struct {
 	Version int `json:"version"`
 }
 
-func Ping(host string, port uint16, timeout time.Duration) (*models.Response, error) {
+// Ping fetches server info from the FiveM HTTP API.
+// The context is forwarded to all HTTP requests so callers can cancel early.
+func Ping(ctx context.Context, host string, port uint16, timeout time.Duration) (*models.Response, error) {
 	start := time.Now()
 	client := &http.Client{Timeout: timeout}
 
 	infoURL := fmt.Sprintf("http://%s:%d/info.json", host, port)
-	infoResp, err := client.Get(infoURL)
+	infoReq, err := http.NewRequestWithContext(ctx, http.MethodGet, infoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	infoResp, err := client.Do(infoReq)
 	if err != nil {
 		return nil, err
 	}
@@ -43,13 +50,15 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 
 	var playersCount int
 	playersURL := fmt.Sprintf("http://%s:%d/players.json", host, port)
-	pResp, err := client.Get(playersURL)
+	pReq, err := http.NewRequestWithContext(ctx, http.MethodGet, playersURL, nil)
 	if err == nil {
-		defer pResp.Body.Close()
-		if pResp.StatusCode == http.StatusOK {
-			var players []interface{}
-			if jsonErr := json.NewDecoder(io.LimitReader(pResp.Body, 4*1024*1024)).Decode(&players); jsonErr == nil {
-				playersCount = len(players)
+		if pResp, err := client.Do(pReq); err == nil {
+			defer pResp.Body.Close()
+			if pResp.StatusCode == http.StatusOK {
+				var players []interface{}
+				if jsonErr := json.NewDecoder(io.LimitReader(pResp.Body, 4*1024*1024)).Decode(&players); jsonErr == nil {
+					playersCount = len(players)
+				}
 			}
 		}
 	}
