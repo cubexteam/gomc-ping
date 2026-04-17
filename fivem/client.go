@@ -3,6 +3,7 @@ package fivem
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -25,27 +26,34 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 	client := &http.Client{Timeout: timeout}
 
 	// Fetch basic info
-	infoUrl := fmt.Sprintf("http://%s:%d/info.json", host, port)
-	resp, err := client.Get(infoUrl)
+	infoURL := fmt.Sprintf("http://%s:%d/info.json", host, port)
+	infoResp, err := client.Get(infoURL)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer infoResp.Body.Close()
+
+	if infoResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("info.json returned status %d", infoResp.StatusCode)
+	}
 
 	var info InfoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+	if err := json.NewDecoder(io.LimitReader(infoResp.Body, 1024*1024)).Decode(&info); err != nil {
 		return nil, err
 	}
 
-	// Fetch players count
-	playersUrl := fmt.Sprintf("http://%s:%d/players.json", host, port)
-	pResp, err := client.Get(playersUrl)
+	// Fetch player count
 	var playersCount int
+	playersURL := fmt.Sprintf("http://%s:%d/players.json", host, port)
+	pResp, err := client.Get(playersURL)
 	if err == nil {
 		defer pResp.Body.Close()
-		var players []interface{}
-		_ = json.NewDecoder(pResp.Body).Decode(&players)
-		playersCount = len(players)
+		if pResp.StatusCode == http.StatusOK {
+			var players []interface{}
+			if jsonErr := json.NewDecoder(io.LimitReader(pResp.Body, 4*1024*1024)).Decode(&players); jsonErr == nil {
+				playersCount = len(players)
+			}
+		}
 	}
 
 	var maxPlayers int
