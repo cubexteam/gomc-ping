@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,6 +16,18 @@ const (
 	PacketCommand = 2
 	PacketResp    = 0
 )
+
+// packetCounter is used to generate unique packet IDs atomically.
+var packetCounter int32
+
+func nextID() int32 {
+	id := atomic.AddInt32(&packetCounter, 1)
+	if id <= 0 {
+		// Avoid -1 which is the server's "auth failed" sentinel
+		return atomic.AddInt32(&packetCounter, 1)
+	}
+	return id
+}
 
 type Client struct {
 	conn    net.Conn
@@ -41,51 +54,58 @@ func New(addr string, password string, timeout time.Duration) (*Client, error) {
 }
 
 func (c *Client) authenticate(password string) error {
-	// Authentication doesn't use Execute because it needs to check for ID -1
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, err := c.send(PacketAuth, password)
+	sentID, err := c.send(PacketAuth, password)
 	if err != nil {
 		return err
 	}
 
-	respID, _, _, err := c.readPacket()
-	if err != nil {
-		return err
+	// The server may send an empty PacketResp before the auth response;
+	// read until we get a packet whose ID matches ours (or -1 for failure).
+	for {
+		respID, _, _, err := c.readPacket()
+		if err != nil {
+			return err
+		}
+		if respID == -1 {
+			return fmt.Errorf("authentication failed: wrong password")
+		}
+		if respID == sentID {
+			return nil
+		}
+		// Ignore unrelated packets (e.g. the empty echo)
 	}
-
-	if respID == -1 {
-		return fmt.Errorf("authentication failed")
-	}
-
-	return nil
 }
 
 func (c *Client) Execute(cmd string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, err := c.send(PacketCommand, cmd)
+	sentID, err := c.send(PacketCommand, cmd)
 	if err != nil {
 		return "", err
 	}
 
-	_, _, body, err := c.readPacket()
-	if err != nil {
-		return "", err
+	for {
+		respID, _, body, err := c.readPacket()
+		if err != nil {
+			return "", err
+		}
+		if respID == sentID {
+			return body, nil
+		}
 	}
-
-	return body, nil
 }
 
 func (c *Client) send(typ int32, body string) (int32, error) {
 	_ = c.conn.SetWriteDeadline(time.Now().Add(c.timeout))
 
-	id := int32(time.Now().UnixNano() / 1000000)
+	id := nextID()
 	buf := new(bytes.Buffer)
 
-	// Length = ID(4) + Type(4) + Body(len) + NullTerminator(1) + NullTerminator(1)
+	// Length = ID(4) + Type(4) + Body(len) + two null terminators(2)
 	length := int32(len(body) + 10)
 
 	_ = binary.Write(buf, binary.LittleEndian, length)
@@ -108,7 +128,7 @@ func (c *Client) readPacket() (int32, int32, string, error) {
 		return 0, 0, "", err
 	}
 
-	if length < 10 || length > 4096 { // RCON limit is usually 4096
+	if length < 10 || length > 4096 {
 		return 0, 0, "", fmt.Errorf("invalid packet length: %d", length)
 	}
 
@@ -122,9 +142,8 @@ func (c *Client) readPacket() (int32, int32, string, error) {
 	_ = binary.Read(reader, binary.LittleEndian, &id)
 	_ = binary.Read(reader, binary.LittleEndian, &typ)
 
-	// Body is from current position to length-2 (skipping two null terminators)
 	bodyLen := length - 10
-	if bodyLen < 0 {
+	if bodyLen <= 0 {
 		return id, typ, "", nil
 	}
 
