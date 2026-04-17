@@ -17,22 +17,11 @@ const (
 	PacketResp    = 0
 )
 
-// packetCounter is used to generate unique packet IDs atomically.
-var packetCounter int32
-
-func nextID() int32 {
-	id := atomic.AddInt32(&packetCounter, 1)
-	if id <= 0 {
-		// Avoid -1 which is the server's "auth failed" sentinel
-		return atomic.AddInt32(&packetCounter, 1)
-	}
-	return id
-}
-
 type Client struct {
 	conn    net.Conn
 	mu      sync.Mutex
 	timeout time.Duration
+	counter int32 // per-instance packet ID counter
 }
 
 func New(addr string, password string, timeout time.Duration) (*Client, error) {
@@ -53,6 +42,15 @@ func New(addr string, password string, timeout time.Duration) (*Client, error) {
 	return c, nil
 }
 
+func (c *Client) nextID() int32 {
+	for {
+		id := atomic.AddInt32(&c.counter, 1)
+		if id > 0 { // skip 0 and -1 (server auth-failure sentinel)
+			return id
+		}
+	}
+}
+
 func (c *Client) authenticate(password string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -62,8 +60,7 @@ func (c *Client) authenticate(password string) error {
 		return err
 	}
 
-	// The server may send an empty PacketResp before the auth response;
-	// read until we get a packet whose ID matches ours (or -1 for failure).
+	// Some servers send an empty PacketResp echo before the auth reply.
 	for {
 		respID, _, _, err := c.readPacket()
 		if err != nil {
@@ -75,7 +72,6 @@ func (c *Client) authenticate(password string) error {
 		if respID == sentID {
 			return nil
 		}
-		// Ignore unrelated packets (e.g. the empty echo)
 	}
 }
 
@@ -102,10 +98,8 @@ func (c *Client) Execute(cmd string) (string, error) {
 func (c *Client) send(typ int32, body string) (int32, error) {
 	_ = c.conn.SetWriteDeadline(time.Now().Add(c.timeout))
 
-	id := nextID()
+	id := c.nextID()
 	buf := new(bytes.Buffer)
-
-	// Length = ID(4) + Type(4) + Body(len) + two null terminators(2)
 	length := int32(len(body) + 10)
 
 	_ = binary.Write(buf, binary.LittleEndian, length)
@@ -127,7 +121,6 @@ func (c *Client) readPacket() (int32, int32, string, error) {
 	if err := binary.Read(c.conn, binary.LittleEndian, &length); err != nil {
 		return 0, 0, "", err
 	}
-
 	if length < 10 || length > 4096 {
 		return 0, 0, "", fmt.Errorf("invalid packet length: %d", length)
 	}
@@ -146,7 +139,6 @@ func (c *Client) readPacket() (int32, int32, string, error) {
 	if bodyLen <= 0 {
 		return id, typ, "", nil
 	}
-
 	body := make([]byte, bodyLen)
 	_, _ = reader.Read(body)
 
