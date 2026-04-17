@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/cubexteam/gomc-ping"
+
+	gomcping "github.com/cubexteam/gomc-ping"
 	"github.com/cubexteam/gomc-ping/models"
 )
 
@@ -11,7 +12,7 @@ func main() {
 	port := uint16(25565)
 
 	cfg := &models.Config{
-		Timeout: 5 * 1000 * 1000 * 1000,
+		Timeout: gomcping.DefaultTimeout,
 		SRV:     true,
 	}
 
