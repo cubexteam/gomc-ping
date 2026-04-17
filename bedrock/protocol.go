@@ -15,7 +15,6 @@ func ParseResponse(data []byte) (motd string, playersOn, playersMax int, version
 		return "", 0, 0, "", "", 0, fmt.Errorf("invalid magic byte")
 	}
 
-	// Read string length at offset 33
 	strLen := int(binary.BigEndian.Uint16(data[33:35]))
 	if len(data) < 35+strLen {
 		return "", 0, 0, "", "", 0, fmt.Errorf("string length mismatch")
@@ -30,6 +29,10 @@ func ParseResponse(data []byte) (motd string, playersOn, playersMax int, version
 
 	edition = parts[0]
 	motd = parts[1]
+	// parts[7] is the subtitle / second line of the MOTD when present
+	if len(parts) > 7 && parts[7] != "" {
+		motd = motd + "\n" + parts[7]
+	}
 	fmt.Sscanf(parts[2], "%d", &protocol)
 	version = parts[3]
 	fmt.Sscanf(parts[4], "%d", &playersOn)
