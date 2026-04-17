@@ -20,7 +20,6 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 	}
 	defer conn.Close()
 
-	// Use the configured timeout for the whole operation
 	_ = conn.SetDeadline(time.Now().Add(config.Timeout))
 
 	protocolVer := config.JavaProtocol
@@ -42,7 +41,8 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 	spb.WriteVarInt(0x00)
 	request := spb.Build()
 
-	// Send burst
+	// Send burst and start measuring latency
+	start := time.Now()
 	if _, err := conn.Write(append(handshake, request...)); err != nil {
 		return nil, err
 	}
@@ -56,6 +56,7 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 	if _, err := io.ReadFull(conn, body); err != nil {
 		return nil, fmt.Errorf("read body: %v", err)
 	}
+	latency := time.Since(start)
 
 	pr := protocol.NewPacketReader(body)
 	pid, _ := pr.ReadVarInt()
@@ -84,6 +85,7 @@ func Ping(host string, port uint16, handshakeHost string, config *models.Config)
 		Favicon:    status.Favicon,
 		Version:    status.Version.Name,
 		Protocol:   status.Version.Protocol,
+		Latency:    latency,
 		Edition:    "Java",
 	}, nil
 }
