@@ -71,27 +71,30 @@ func (r *Response) JSON() string {
 	return string(b)
 }
 
+// CleanMOTD strips ANSI escape codes, Minecraft § and & color codes,
+// and trims the resulting string.
 func CleanMOTD(motd string) string {
-	// First clean ANSI escape codes
+	// Strip ANSI escape sequences
 	motd = ansiRegex.ReplaceAllString(motd, "")
 
 	var b strings.Builder
 	runes := []rune(motd)
 	for i := 0; i < len(runes); i++ {
-		// Clean Minecraft style color codes (§ and &)
+		// § always consumes the next rune
 		if runes[i] == '§' {
 			i++
 			continue
 		}
+		// & only acts as a color code before valid format characters
 		if runes[i] == '&' && i+1 < len(runes) {
 			next := runes[i+1]
 			if (next >= '0' && next <= '9') || (next >= 'a' && next <= 'f') ||
-			   (next >= 'k' && next <= 'o') || next == 'r' {
+				(next >= 'k' && next <= 'o') || next == 'r' {
 				i++
 				continue
 			}
 		}
 		b.WriteRune(runes[i])
 	}
-	return b.String()
+	return strings.TrimSpace(b.String())
 }
