@@ -97,15 +97,25 @@ func Query(host string, port uint16, timeout time.Duration) (*models.Response, e
 		resPlayers[i] = models.Player{Name: p}
 	}
 
+	// Parse plugins: empty string should produce a nil slice, not [""]
+	var plugins []string
+	if raw := kv["plugins"]; raw != "" {
+		for _, p := range strings.Split(raw, ";") {
+			if t := strings.TrimSpace(p); t != "" {
+				plugins = append(plugins, t)
+			}
+		}
+	}
+
 	return &models.Response{
 		Online:     true,
 		MOTD:       kv["hostname"],
 		Version:    kv["version"],
-		Software:   kv["server_mod"], // GameSpy4 standard field for server core
+		Software:   kv["server_mod"],
 		PlayersMax: queryToInt(kv["maxplayers"]),
 		PlayersOn:  queryToInt(kv["numplayers"]),
 		Map:        kv["map"],
-		Plugins:    strings.Split(kv["plugins"], ";"),
+		Plugins:    plugins,
 		Sample:     resPlayers,
 		Edition:    "Query",
 	}, nil
