@@ -15,13 +15,16 @@ const (
 	PacketAuth    = 3
 	PacketCommand = 2
 	PacketResp    = 0
+
+	// maxSkipPackets is how many unrelated packets we tolerate before giving up.
+	maxSkipPackets = 32
 )
 
 type Client struct {
 	conn    net.Conn
 	mu      sync.Mutex
 	timeout time.Duration
-	counter int32 // per-instance packet ID counter
+	counter int32
 }
 
 func New(addr string, password string, timeout time.Duration) (*Client, error) {
@@ -30,11 +33,7 @@ func New(addr string, password string, timeout time.Duration) (*Client, error) {
 		return nil, err
 	}
 
-	c := &Client{
-		conn:    conn,
-		timeout: timeout,
-	}
-
+	c := &Client{conn: conn, timeout: timeout}
 	if err := c.authenticate(password); err != nil {
 		conn.Close()
 		return nil, err
@@ -45,7 +44,7 @@ func New(addr string, password string, timeout time.Duration) (*Client, error) {
 func (c *Client) nextID() int32 {
 	for {
 		id := atomic.AddInt32(&c.counter, 1)
-		if id > 0 { // skip 0 and -1 (server auth-failure sentinel)
+		if id > 0 {
 			return id
 		}
 	}
@@ -60,8 +59,7 @@ func (c *Client) authenticate(password string) error {
 		return err
 	}
 
-	// Some servers send an empty PacketResp echo before the auth reply.
-	for {
+	for skip := 0; skip < maxSkipPackets; skip++ {
 		respID, _, _, err := c.readPacket()
 		if err != nil {
 			return err
@@ -73,6 +71,7 @@ func (c *Client) authenticate(password string) error {
 			return nil
 		}
 	}
+	return fmt.Errorf("authentication failed: no matching response after %d packets", maxSkipPackets)
 }
 
 func (c *Client) Execute(cmd string) (string, error) {
@@ -84,7 +83,7 @@ func (c *Client) Execute(cmd string) (string, error) {
 		return "", err
 	}
 
-	for {
+	for skip := 0; skip < maxSkipPackets; skip++ {
 		respID, _, body, err := c.readPacket()
 		if err != nil {
 			return "", err
@@ -93,6 +92,7 @@ func (c *Client) Execute(cmd string) (string, error) {
 			return body, nil
 		}
 	}
+	return "", fmt.Errorf("no matching response after %d packets", maxSkipPackets)
 }
 
 func (c *Client) send(typ int32, body string) (int32, error) {
