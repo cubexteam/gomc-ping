@@ -35,19 +35,19 @@ func Ping(host string, port uint16, config *models.Config) (*models.Response, er
 		return nil, err
 	}
 
-	resp := make([]byte, 2048)
-	n, err := conn.Read(resp)
+	buf := make([]byte, 2048)
+	n, err := conn.Read(buf)
 	if err != nil {
 		return nil, err
 	}
 	latency := time.Since(start)
 
-	motd, online, max, version, edition, proto, err := ParseResponse(resp[:n])
+	motd, online, max, version, edition, proto, err := ParseResponse(buf[:n])
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.Response{
+	resp := &models.Response{
 		Online:     true,
 		Host:       host,
 		Port:       port,
@@ -57,6 +57,7 @@ func Ping(host string, port uint16, config *models.Config) (*models.Response, er
 		Version:    version,
 		Edition:    edition,
 		Protocol:   proto,
-		Latency:    latency,
-	}, nil
+	}
+	resp.SetLatency(latency)
+	return resp, nil
 }
