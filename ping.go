@@ -6,15 +6,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cubexteam/gomc-ping/java"
 	"github.com/cubexteam/gomc-ping/bedrock"
+	"github.com/cubexteam/gomc-ping/cache"
+	"github.com/cubexteam/gomc-ping/fivem"
+	"github.com/cubexteam/gomc-ping/java"
+	"github.com/cubexteam/gomc-ping/models"
+	"github.com/cubexteam/gomc-ping/samp"
 	"github.com/cubexteam/gomc-ping/source"
 	"github.com/cubexteam/gomc-ping/terraria"
-	"github.com/cubexteam/gomc-ping/fivem"
-	"github.com/cubexteam/gomc-ping/samp"
 	"github.com/cubexteam/gomc-ping/utils"
-	"github.com/cubexteam/gomc-ping/models"
-	"github.com/cubexteam/gomc-ping/cache"
 )
 
 var (
@@ -27,8 +27,8 @@ func NewConfig() *models.Config {
 		Timeout:      DefaultTimeout,
 		SRV:          true,
 		JavaProtocol: 47,
-		EnableFiveM:  false, // Opt-in for parallel ping
-		EnableSAMP:   false, // Opt-in for parallel ping
+		EnableFiveM:  false,
+		EnableSAMP:   false,
 	}
 }
 
@@ -61,7 +61,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if resp, err := java.Ping(targetHost, targetPort, targetHost, cfg); err == nil {
+		if resp, err := java.Ping(targetHost, targetPort, host, cfg); err == nil {
 			resp.Host = host
 			processResponse(resp, host, targetHost, targetPort, cfg)
 			sendResult(ctx, resultChan, resp)
@@ -79,7 +79,7 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 		}
 	}()
 
-	// Source Engine (Rust, CS2)
+	// Source Engine (Rust, CS2, DayZ, ARK, Valheim, Unturned)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -130,8 +130,8 @@ func PingWithConfig(host string, port uint16, cfg *models.Config) (*models.Respo
 	}()
 
 	select {
-	case res := <-resultChan:
-		if res != nil {
+	case res, ok := <-resultChan:
+		if ok && res != nil {
 			cancel()
 			if !cfg.DisableCache {
 				GlobalCache.Set(cacheKey, res)
@@ -154,60 +154,110 @@ func sendResult(ctx context.Context, ch chan *models.Response, res *models.Respo
 	}
 }
 
+// pingWithCache is a helper that applies global cache to direct ping functions.
+func pingWithCache(host string, port uint16, edition string, fn func() (*models.Response, error)) (*models.Response, error) {
+	cacheKey := fmt.Sprintf("%s:%d:%s", host, port, edition)
+	if resp, ok := GlobalCache.Get(cacheKey); ok {
+		return resp, nil
+	}
+	resp, err := fn()
+	if err != nil {
+		return nil, err
+	}
+	GlobalCache.Set(cacheKey, resp)
+	return resp, nil
+}
+
 func PingRust(host string, port uint16) (*models.Response, error) {
-	resp, err := source.Ping(host, port, DefaultTimeout)
-	if err == nil { resp.Edition = "Rust" }
-	return resp, err
+	return pingWithCache(host, port, "Rust", func() (*models.Response, error) {
+		resp, err := source.Ping(host, port, DefaultTimeout)
+		if err == nil {
+			resp.Edition = "Rust"
+		}
+		return resp, err
+	})
 }
 
 func PingCS2(host string, port uint16) (*models.Response, error) {
-	resp, err := source.Ping(host, port, DefaultTimeout)
-	if err == nil { resp.Edition = "CS2" }
-	return resp, err
+	return pingWithCache(host, port, "CS2", func() (*models.Response, error) {
+		resp, err := source.Ping(host, port, DefaultTimeout)
+		if err == nil {
+			resp.Edition = "CS2"
+		}
+		return resp, err
+	})
 }
 
 func PingDayZ(host string, port uint16) (*models.Response, error) {
-	resp, err := source.Ping(host, port, DefaultTimeout)
-	if err == nil { resp.Edition = "DayZ" }
-	return resp, err
+	return pingWithCache(host, port, "DayZ", func() (*models.Response, error) {
+		resp, err := source.Ping(host, port, DefaultTimeout)
+		if err == nil {
+			resp.Edition = "DayZ"
+		}
+		return resp, err
+	})
 }
 
 func PingARK(host string, port uint16) (*models.Response, error) {
-	resp, err := source.Ping(host, port, DefaultTimeout)
-	if err == nil { resp.Edition = "ARK" }
-	return resp, err
+	return pingWithCache(host, port, "ARK", func() (*models.Response, error) {
+		resp, err := source.Ping(host, port, DefaultTimeout)
+		if err == nil {
+			resp.Edition = "ARK"
+		}
+		return resp, err
+	})
 }
 
 func PingValheim(host string, port uint16) (*models.Response, error) {
-	resp, err := source.Ping(host, port, DefaultTimeout)
-	if err == nil { resp.Edition = "Valheim" }
-	return resp, err
+	return pingWithCache(host, port, "Valheim", func() (*models.Response, error) {
+		resp, err := source.Ping(host, port, DefaultTimeout)
+		if err == nil {
+			resp.Edition = "Valheim"
+		}
+		return resp, err
+	})
 }
 
 func PingUnturned(host string, port uint16) (*models.Response, error) {
-	resp, err := source.Ping(host, port, DefaultTimeout)
-	if err == nil { resp.Edition = "Unturned" }
-	return resp, err
+	return pingWithCache(host, port, "Unturned", func() (*models.Response, error) {
+		resp, err := source.Ping(host, port, DefaultTimeout)
+		if err == nil {
+			resp.Edition = "Unturned"
+		}
+		return resp, err
+	})
 }
 
 func PingTerraria(host string, port uint16) (*models.Response, error) {
-	return terraria.Ping(host, port, NewConfig())
+	return pingWithCache(host, port, "Terraria", func() (*models.Response, error) {
+		return terraria.Ping(host, port, NewConfig())
+	})
 }
 
 func PingFiveM(host string, port uint16) (*models.Response, error) {
-	return fivem.Ping(host, port, DefaultTimeout)
+	return pingWithCache(host, port, "FiveM", func() (*models.Response, error) {
+		return fivem.Ping(host, port, DefaultTimeout)
+	})
 }
 
 func PingSAMP(host string, port uint16) (*models.Response, error) {
-	return samp.Ping(host, port, DefaultTimeout)
+	return pingWithCache(host, port, "SAMP", func() (*models.Response, error) {
+		return samp.Ping(host, port, DefaultTimeout)
+	})
 }
 
 func processResponse(resp *models.Response, host, tHost string, tPort uint16, cfg *models.Config) {
 	resp.MOTD = models.CleanMOTD(resp.MOTD)
 	if qResp, qErr := java.Query(tHost, tPort, cfg.Timeout); qErr == nil {
-		if qResp.Software != "" { resp.Software = qResp.Software }
-		if len(qResp.Plugins) > 0 { resp.Plugins = qResp.Plugins }
-		if qResp.Map != "" { resp.Map = qResp.Map }
+		if qResp.Software != "" {
+			resp.Software = qResp.Software
+		}
+		if len(qResp.Plugins) > 0 {
+			resp.Plugins = qResp.Plugins
+		}
+		if qResp.Map != "" {
+			resp.Map = qResp.Map
+		}
 	}
 }
 
