@@ -10,24 +10,34 @@ import (
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
+// Response holds the result of a server ping.
+// LatencyMs is the human-friendly millisecond value; Latency is kept for
+// internal use but excluded from JSON to avoid the raw-nanosecond number.
 type Response struct {
-	Online     bool          `json:"online"`
-	Host       string        `json:"host"`
-	Port       uint16        `json:"port"`
-	MOTD       string        `json:"motd"`
-	PlayersMax int           `json:"players_max"`
-	PlayersOn  int           `json:"players_on"`
-	Version    string        `json:"version"`
-	Protocol   int           `json:"protocol"`
-	Latency    time.Duration `json:"latency"`
-	Edition    string        `json:"edition"`
-	Software   string        `json:"software,omitempty"`
-	Favicon    string        `json:"favicon,omitempty"`
-	Sample     []Player      `json:"sample,omitempty"`
-	Map        string        `json:"map,omitempty"`
-	World      string        `json:"world,omitempty"`
-	Plugins    []string      `json:"plugins,omitempty"`
-	Password   bool          `json:"password,omitempty"`
+	Online     bool     `json:"online"`
+	Host       string   `json:"host"`
+	Port       uint16   `json:"port"`
+	MOTD       string   `json:"motd"`
+	PlayersMax int      `json:"players_max"`
+	PlayersOn  int      `json:"players_on"`
+	Version    string   `json:"version"`
+	Protocol   int      `json:"protocol"`
+	LatencyMs  int64    `json:"latency_ms"`
+	Latency    time.Duration `json:"-"`
+	Edition    string   `json:"edition"`
+	Software   string   `json:"software,omitempty"`
+	Favicon    string   `json:"favicon,omitempty"`
+	Sample     []Player `json:"sample,omitempty"`
+	Map        string   `json:"map,omitempty"`
+	World      string   `json:"world,omitempty"`
+	Plugins    []string `json:"plugins,omitempty"`
+	Password   bool     `json:"password,omitempty"`
+}
+
+// SetLatency sets both Latency and the derived LatencyMs field.
+func (r *Response) SetLatency(d time.Duration) {
+	r.Latency = d
+	r.LatencyMs = d.Milliseconds()
 }
 
 type Player struct {
@@ -59,7 +69,7 @@ func (r *Response) String() string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("🎮 [%s] %s (%s)\n", r.Edition, r.MOTD, r.Version))
 	b.WriteString(fmt.Sprintf("👥 Players: %d/%d\n", r.PlayersOn, r.PlayersMax))
-	b.WriteString(fmt.Sprintf("📡 Latency: %v\n", r.Latency))
+	b.WriteString(fmt.Sprintf("📡 Latency: %dms\n", r.LatencyMs))
 	if r.World != "" {
 		b.WriteString(fmt.Sprintf("🌍 World: %s\n", r.World))
 	}
@@ -74,7 +84,6 @@ func (r *Response) JSON() string {
 // CleanMOTD strips ANSI escape codes, Minecraft § and & color codes,
 // and trims the resulting string.
 func CleanMOTD(motd string) string {
-	// Strip ANSI escape sequences
 	motd = ansiRegex.ReplaceAllString(motd, "")
 
 	var b strings.Builder
