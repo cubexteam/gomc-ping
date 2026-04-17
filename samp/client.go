@@ -20,7 +20,6 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Get IPv4 from existing connection to avoid double DNS lookup
 	remoteAddr := conn.RemoteAddr().(*net.UDPAddr)
 	ip := remoteAddr.IP.To4()
 	if ip == nil {
@@ -51,14 +50,32 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 
 	r := bytes.NewReader(resp[11:])
 
-	password, _ := r.ReadByte()
-	players, _ := readUint16(r)
-	maxPlayers, _ := readUint16(r)
-	hostname, _ := readString(r)
-	gamemode, _ := readString(r)
-	mapName, _ := readString(r)
+	password, err := r.ReadByte()
+	if err != nil {
+		return nil, fmt.Errorf("samp: read password flag: %w", err)
+	}
+	players, err := readUint16(r)
+	if err != nil {
+		return nil, fmt.Errorf("samp: read players: %w", err)
+	}
+	maxPlayers, err := readUint16(r)
+	if err != nil {
+		return nil, fmt.Errorf("samp: read max players: %w", err)
+	}
+	hostname, err := readString(r)
+	if err != nil {
+		return nil, fmt.Errorf("samp: read hostname: %w", err)
+	}
+	gamemode, err := readString(r)
+	if err != nil {
+		return nil, fmt.Errorf("samp: read gamemode: %w", err)
+	}
+	mapName, err := readString(r)
+	if err != nil {
+		return nil, fmt.Errorf("samp: read map: %w", err)
+	}
 
-	return &models.Response{
+	result := &models.Response{
 		Online:     true,
 		Host:       host,
 		Port:       port,
@@ -67,10 +84,11 @@ func Ping(host string, port uint16, timeout time.Duration) (*models.Response, er
 		PlayersMax: int(maxPlayers),
 		Map:        mapName,
 		Software:   gamemode,
-		Latency:    latency,
 		Edition:    "SA-MP",
 		Password:   password == 1,
-	}, nil
+	}
+	result.SetLatency(latency)
+	return result, nil
 }
 
 func readUint16(r *bytes.Reader) (uint16, error) {
