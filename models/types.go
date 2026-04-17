@@ -5,15 +5,19 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // Response holds the result of a server ping.
-// LatencyMs is the human-friendly millisecond value; Latency is kept for
-// internal use but excluded from JSON to avoid the raw-nanosecond number.
+// All fields are safe to read after the Ping call returns.
+// Fields enriched asynchronously (Software, Plugins, Map for Java) are
+// protected by mu — use the accessor methods if you read them concurrently.
 type Response struct {
+	mu sync.RWMutex
+
 	Online     bool     `json:"online"`
 	Host       string   `json:"host"`
 	Port       uint16   `json:"port"`
@@ -40,11 +44,51 @@ func (r *Response) SetLatency(d time.Duration) {
 	r.LatencyMs = d.Milliseconds()
 }
 
+// Enrich safely overwrites enrichment fields that arrive asynchronously
+// (Java Query: Software, Plugins, Map).
+func (r *Response) Enrich(software string, plugins []string, mapName string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if software != "" {
+		r.Software = software
+	}
+	if len(plugins) > 0 {
+		r.Plugins = plugins
+	}
+	if mapName != "" {
+		r.Map = mapName
+	}
+}
+
+// GetSoftware returns Software safely.
+func (r *Response) GetSoftware() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Software
+}
+
+// GetPlugins returns a copy of Plugins safely.
+func (r *Response) GetPlugins() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]string, len(r.Plugins))
+	copy(out, r.Plugins)
+	return out
+}
+
+// GetMap returns Map safely.
+func (r *Response) GetMap() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Map
+}
+
 type Player struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
 }
 
+// Config controls the behaviour of a ping call.
 type Config struct {
 	Timeout          time.Duration
 	SRV              bool
@@ -53,6 +97,37 @@ type Config struct {
 	TerrariaFallback bool
 	EnableFiveM      bool
 	EnableSAMP       bool
+	Retries          int
+	RetryDelay       time.Duration
+}
+
+// WithTimeout returns a copy of cfg with Timeout set.
+func (c *Config) WithTimeout(d time.Duration) *Config {
+	cp := *c
+	cp.Timeout = d
+	return &cp
+}
+
+// WithoutCache returns a copy of cfg with caching disabled.
+func (c *Config) WithoutCache() *Config {
+	cp := *c
+	cp.DisableCache = true
+	return &cp
+}
+
+// WithRetries returns a copy of cfg with retry settings.
+func (c *Config) WithRetries(n int, delay time.Duration) *Config {
+	cp := *c
+	cp.Retries = n
+	cp.RetryDelay = delay
+	return &cp
+}
+
+// WithSRV returns a copy of cfg with SRV resolution toggled.
+func (c *Config) WithSRV(enabled bool) *Config {
+	cp := *c
+	cp.SRV = enabled
+	return &cp
 }
 
 var (
@@ -62,6 +137,9 @@ var (
 )
 
 func (r *Response) String() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	if !r.Online {
 		return fmt.Sprintf("❌ Server %s:%d is offline", r.Host, r.Port)
 	}
@@ -73,10 +151,21 @@ func (r *Response) String() string {
 	if r.World != "" {
 		b.WriteString(fmt.Sprintf("🌍 World: %s\n", r.World))
 	}
+	if r.Map != "" {
+		b.WriteString(fmt.Sprintf("🗺  Map: %s\n", r.Map))
+	}
+	if r.Software != "" {
+		b.WriteString(fmt.Sprintf("🖥  Software: %s\n", r.Software))
+	}
+	if len(r.Plugins) > 0 {
+		b.WriteString(fmt.Sprintf("🔌 Plugins (%d): %s\n", len(r.Plugins), strings.Join(r.Plugins, ", ")))
+	}
 	return b.String()
 }
 
 func (r *Response) JSON() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	b, _ := json.Marshal(r)
 	return string(b)
 }
@@ -89,12 +178,10 @@ func CleanMOTD(motd string) string {
 	var b strings.Builder
 	runes := []rune(motd)
 	for i := 0; i < len(runes); i++ {
-		// § always consumes the next rune
 		if runes[i] == '§' {
 			i++
 			continue
 		}
-		// & only acts as a color code before valid format characters
 		if runes[i] == '&' && i+1 < len(runes) {
 			next := runes[i+1]
 			if (next >= '0' && next <= '9') || (next >= 'a' && next <= 'f') ||
