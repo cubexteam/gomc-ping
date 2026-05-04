@@ -3,6 +3,8 @@
 [![License](https://img.shields.io/github/license/cubexteam/gomc-ping)](https://github.com/cubexteam/gomc-ping/blob/main/LICENSE)
 [![Multi-Game](https://img.shields.io/badge/Multi--Game-Поддержка-orange)](#-поддерживаемые-игры)
 
+![gomc-ping banner](assets/gomcping.png)
+
 Высокопроизводительная библиотека для пинга игровых серверов на Go.
 Поддерживает Minecraft (Java/Bedrock), Source Engine (Rust, CS2), Terraria, **FiveM** и **SA-MP**. Разработана для ботов и систем мониторинга с кешированием и поддержкой прокси-протоколов.
 
