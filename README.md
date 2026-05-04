@@ -5,6 +5,8 @@
 
 [Русская документация здесь 🇷🇺](README_RU.md)
 
+[gomc-ping banner](assets/gomcping.png)
+
 High-performance multi-game server ping library for Go.
 Supports Minecraft (Java/Bedrock), Source Engine (Rust, CS2), Terraria, **FiveM**, and **SA-MP**. Designed for bots and monitoring systems with built-in caching and proxy-safe protocols.
 
